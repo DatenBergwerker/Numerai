@@ -32,6 +32,14 @@ logging.basicConfig(filename="numerai_logger.log",
                     format="%(asctime)s %(levelname)s %(message)s",
                     datefmt="%d.%m.%Y %H:%M:%S")
 
+# Data loading
+logging.info("Loading Data")
+training_data = pd.read_csv('numerai_training_data.csv', header=0)
+prediction_data = pd.read_csv('numerai_tournament_data.csv', header=0)
+features = [f for f in list(training_data) if "feature" in f]
+X = training_data[features]
+Y = training_data["target"]
+
 models = {"ExtraTrees": [ExtraTreesClassifier(n_jobs=-1),
                          {"max_features": range(int(sqrt(X.shape[1])), int(X.shape[1] * 0.5)),
                           "n_estimators": [val for sublist in [[10, 25], list(range(50, 501, 50))] for val in sublist]}],
@@ -41,17 +49,9 @@ models = {"ExtraTrees": [ExtraTreesClassifier(n_jobs=-1),
           "KNearestNeighbors": [KNeighborsClassifier(algorithm="kd_tree", n_jobs=-1),
                                 {"n_neighbors": range(5, 250, 5)}]}
 
-skf = StratifiedKFold(n_splits=10)
-
-logging.info("Loading Data")
-# Load the data from the CSV files
-training_data = pd.read_csv('numerai_training_data.csv', header=0)
-prediction_data = pd.read_csv('numerai_tournament_data.csv', header=0)
+skf = StratifiedKFold(n_splits=5)
 
 # Transform the loaded CSV data into numpy arrays
-features = [f for f in list(training_data) if "feature" in f]
-X = training_data[features]
-Y = training_data["target"]
 ind = train_test_split(X.index)
 x_train, y_train = X.iloc[ind[0]], Y.iloc[ind[0]]
 x_test, y_test = X.iloc[ind[1]], Y.iloc[ind[1]]
@@ -62,25 +62,24 @@ logging.info("Data loading and transformation finished")
 
 # TODO: Check out cv_results dict returned from GridSearchCV
 # TODO: Combine Predictions, find out which set to use to predict probabilities
-for i, model in enumerate(models.keys()):
+predictions_train = np.zeros([X.shape[0], no_of_models])
+predictions_submission = np.zeros([prediction_data.shape[0], no_of_models])
+for (train, test) in skf.split(X=X, y=Y):
     logging.info("Begin Training: {model}, Model {i} of {len}".format(model=model,
                                                                       i=i,
                                                                       len=no_of_models))
-    predictions_train = np.zeros([x_test.shape[0], no_of_models])
-    predictions_submission = np.zeros([prediction_data.shape[0], no_of_models])
-    for (train, test) in skf.split(X=X, y=Y):
-        x_train, y_train = X[train], Y[train]
-        x_test, y_test = X[test], Y[test]
+    x_train, y_train = X[train], Y[train]
+    x_test, y_test = X[test], Y[test]
+    for i, model in enumerate(models.keys()):
+        cur_model = GridSearchCV(models[model][0], param_grid=models[model][1], cv=5)
+        cur_model.fit(X=x_train, y=y_train)
+        params = {"best_parameters": cur_model.best_params_,
+                  "best_validation_score": cur_model.best_score_,
+                  "mean_cv_score": cur_model.cv_results_["mean_training_score"],
+                  "holdout_accuracy": cur_model.score(x_test, y_test)}
+        grid_search_report(model, params=params)
+        predictions_train[train, i] = cur_model.predict_proba(X=x_test)
 
-
-            cur_model = GridSearchCV(models[model][0], param_grid=models[model][1], cv=5)
-            cur_model.fit(X=x_train, y=y_train)
-            params = {"best_parameters": cur_model.best_params_,
-                      "best_validation_score": cur_model.best_score_,
-                      "mean_cv_score": cur_model.cv_results_["mean_training_score"],
-                      "holdout_accuracy": cur_model.score(x_test, y_test)}
-            grid_search_report(model, params=params)
-            predictions_train[] = cur_model.predict_proba(X=x_test)
 
 predictions = pd.DataFrame([for model in predictions)
 ensemble_tree = RandomForestClassifier(n_jobs=-1)
