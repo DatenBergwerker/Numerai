@@ -83,8 +83,8 @@ for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
         predictions_train[train, i] = cur_model.predict_proba(X=x_test)
         predictions_submission[:, i] = cur_model.predict_proba(X=tournament)
 
-logging.info("Base model training complete. Starting meta classifier training.")
 # stacked classifier
+logging.info("Base model training complete. Starting meta classifier training.")
 ensemble_tree = RandomForestClassifier(n_jobs=-1)
 meta_classifier = GridSearchCV(ensemble_tree, param_grid=models["ExtraTrees"])
 params = {"best_parameters": meta_classifier.best_params_,
@@ -98,4 +98,3 @@ y_prediction = ensemble_tree.predict_proba(predictions_submission)
 logging.info("Writing predictions to predictions.csv")
 final = pd.DataFrame(ids, y_prediction)
 final.to_csv("predictions.csv", index=False)
-# Now you can upload these predictions on numer.ai
