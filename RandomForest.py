@@ -64,13 +64,15 @@ logging.info("Data loading and transformation finished")
 # TODO: Combine Predictions, find out which set to use to predict probabilities
 predictions_train = np.zeros([X.shape[0], no_of_models])
 predictions_submission = np.zeros([prediction_data.shape[0], no_of_models])
-for (train, test) in skf.split(X=X, y=Y):
-    logging.info("Begin Training: {model}, Model {i} of {len}".format(model=model,
-                                                                      i=i,
-                                                                      len=no_of_models))
+for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
+    logging.info("Train / Test Split, Split {j} of {split}".format(j=j,
+                                                                   split=skf.get_n_splits()))
     x_train, y_train = X[train], Y[train]
     x_test, y_test = X[test], Y[test]
     for i, model in enumerate(models.keys()):
+        logging.info("Begin Training: {model}, Model {i} of {len}".format(model=model,
+                                                                          i=i,
+                                                                          len=no_of_models))
         cur_model = GridSearchCV(models[model][0], param_grid=models[model][1], cv=5)
         cur_model.fit(X=x_train, y=y_train)
         params = {"best_parameters": cur_model.best_params_,
@@ -79,43 +81,21 @@ for (train, test) in skf.split(X=X, y=Y):
                   "holdout_accuracy": cur_model.score(x_test, y_test)}
         grid_search_report(model, params=params)
         predictions_train[train, i] = cur_model.predict_proba(X=x_test)
+        predictions_submission[:, i] = cur_model.predict_proba(X=tournament)
 
-
-predictions = pd.DataFrame([for model in predictions)
+logging.info("Base model training complete. Starting meta classifier training.")
+# stacked classifier
 ensemble_tree = RandomForestClassifier(n_jobs=-1)
+meta_classifier = GridSearchCV(ensemble_tree, param_grid=models["ExtraTrees"])
+params = {"best_parameters": meta_classifier.best_params_,
+          "best_validation_score": meta_classifier.best_score_,
+          "mean_cv_score": meta_classifier.cv_results_["mean_training_score"],
+          "holdout_accuracy": meta_classifier.score(x_test, y_test)}
+grid_search_report(meta_classifier, params=params)
 
-
-
-
-
-
-# Extra Trees
-logging.info("Training Start: Model ExtraTrees")
-
-model = GridSearchCV(ExtraTreesClassifier(n_jobs=-1), param_grid=param_grid, cv=10)
-model = extra_tree.fit(X=x_train, y=y_train)
-extra_tree = model
-logging.info("Training End: Model ExtraTrees")
-logging.info("Extreme Random Tree Results:")
-logging.info("Best parameters on training set: {0}".format(extra_tree.best_params_))
-logging.info("Best cross-validated accuracy: {0}".format(extra_tree.best_score_))
-logging.info("Accuracy on holdout test set: {0}".format(extra_tree.score(x_test, y_test)))
-
-# Linear SVC
-logging.info("Training Start: Model Linear SVC")
-param_grid = {}
-linear_svm = GridSearchCV(LinearSVC())
-
-print("Predicting...")
-# Your trained model is now used to make predictions on the numerai_tournament_data
-# The model returns two columns: [probability of 0, probability of 1]
-# We are just interested in the probability that the target is 1.
-y_prediction = extra_tree.predict_proba(tournament)
-results = y_prediction[:, 1]
-results_df = pd.DataFrame(data={'probability': results})
-joined = pd.DataFrame(ids).join(results_df)
-
-print("Writing predictions to predictions.csv")
-# Save the predictions out to a CSV file
-joined.to_csv("predictions.csv", index=False)
+logging.info("Meta classifier training complete. Predicting tournament propabilities.")
+y_prediction = ensemble_tree.predict_proba(predictions_submission)
+logging.info("Writing predictions to predictions.csv")
+final = pd.DataFrame(ids, y_prediction)
+final.to_csv("predictions.csv", index=False)
 # Now you can upload these predictions on numer.ai
