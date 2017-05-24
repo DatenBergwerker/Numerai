@@ -93,10 +93,7 @@ logging.info("Base model training complete. Starting meta classifier training.")
 sfk = StratifiedKFold(n_splits=2)
 ensemble_tree = RandomForestClassifier(n_jobs=-1)
 meta_classifier = GridSearchCV(ensemble_tree, param_grid=models["ExtraTrees"])
-params = {"best_parameters": meta_classifier.best_params_,
-          "best_validation_score": meta_classifier.best_score_,
-          "mean_cv_score": meta_classifier.cv_results_["mean_test_score"],
-          "holdout_accuracy": meta_classifier.score(x_test, y_test)}
+params = gen_param_dict(meta_classifier, x_test=predictions_train, y_test=Y)
 grid_search_report(meta_classifier, params=params)
 
 logging.info("Meta classifier training complete. Predicting tournament propabilities.")
