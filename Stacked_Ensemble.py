@@ -10,7 +10,7 @@ from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.pipeline import Pipeline
 
 
-def grid_search_report(model):
+def grid_search_report(model, params):
     logging.info("Training End: Model {}".format(model))
     logging.info("""{model} Results:\n
                     Best parameters on training set: \n
@@ -68,7 +68,7 @@ models = {"ExtraTrees": [ExtraTreesClassifier(n_jobs=-1),
           "KNearestNeighbors": [KNeighborsClassifier(algorithm="kd_tree", n_jobs=-1),
                                 {"n_neighbors": range(5, 250, 5)}]}
 
-skf = StratifiedKFold(n_splits=5)
+skf = StratifiedKFold(n_splits=3)
 no_of_models = len(models.keys())
 predictions_train = np.zeros([X.shape[0], no_of_models])
 predictions_submission = np.zeros([prediction_data.shape[0], no_of_models])
@@ -85,6 +85,7 @@ for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
         cur_model.fit(X=x_train, y=y_train)
         params = gen_param_dict(cur_model, x_test=x_test, y_test=y_test)
         grid_search_report(model, params=params)
+        # TODO: attribute classes_
         predictions_train[train, i] = cur_model.predict_proba(X=x_test)
         predictions_submission[:, i] = cur_model.predict_proba(X=tournament)
 
