@@ -17,14 +17,14 @@ def grid_search_report(model, params):
                     {best_params}\n
                     Best cross-validated accuracy:\n
                     {cv_accuracy}\n
-                    Mean cross-validated accuracy:\n
-                    {mean_cv_accuracy}
+                    Cross-validation stats:\n
+                    {cv_stats}
                     Accuracy on holdout test set:\n
                     {holdout_accuracy}
                  """.format(model=model,
                             best_params=params["best_parameters"],
                             cv_accuracy=params["best_validation_score"],
-                            mean_cv_accuracy=params["mean_cv_score"],
+                            cv_stats=params["cv_score_stats"],
                             holdout_accuracy=params["holdout_accuracy"])
                  )
 
@@ -86,7 +86,7 @@ for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
         params = gen_param_dict(cur_model, x_test=x_test, y_test=y_test)
         grid_search_report(model, params=params)
         # TODO: attribute classes_
-        predictions_train[train, i] = cur_model.predict_proba(X=x_test)
+        predictions_train[test, i] = cur_model.predict_proba(X=x_test)
         predictions_submission[:, i] = cur_model.predict_proba(X=tournament)
 
 # stacked classifier
