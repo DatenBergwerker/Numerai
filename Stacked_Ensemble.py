@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.kernel_approximation import Nystroem
-from sklearn.svm import LinearSVC
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.pipeline import Pipeline
 
@@ -63,8 +63,8 @@ models = {"ExtraTrees": [ExtraTreesClassifier(n_jobs=-1),
                          {"max_features": range(int(sqrt(X.shape[1])), int(X.shape[1] * 0.5)),
                           "n_estimators": [val for sublist in [[10, 25], list(range(50, 501, 50))] for val in sublist]}],
           "Nystroem-LinearSVM": [Pipeline([("Nystroem_feature_map", Nystroem()),
-                                           ("svm", LinearSVC())]),
-                                 {"svm__C": [0.1, 10, 100]}],
+                                           ("logisticRegression", LogisticRegression(solver="sag", n_jobs=-1))]),
+                                 {"logisticRegression__C": [0.1, 1, 10]}],
           "KNearestNeighbors": [KNeighborsClassifier(algorithm="kd_tree", n_jobs=-1),
                                 {"n_neighbors": range(5, 250, 5)}]}
 
@@ -85,7 +85,6 @@ for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
         cur_model.fit(X=x_train, y=y_train)
         params = gen_param_dict(cur_model, x_test=x_test, y_test=y_test)
         grid_search_report(model, params=params)
-        # TODO: attribute classes_
         predictions_train[test, i] = cur_model.predict_proba(X=x_test)[:, 1]
         predictions_submission[:, i] = cur_model.predict_proba(X=tournament)[:, 1]
 
