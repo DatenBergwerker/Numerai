@@ -86,19 +86,19 @@ for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
         params = gen_param_dict(cur_model, x_test=x_test, y_test=y_test)
         grid_search_report(model, params=params)
         # TODO: attribute classes_
-        predictions_train[test, i] = cur_model.predict_proba(X=x_test)
-        predictions_submission[:, i] = cur_model.predict_proba(X=tournament)
+        predictions_train[test, i] = cur_model.predict_proba(X=x_test)[:, 1]
+        predictions_submission[:, i] = cur_model.predict_proba(X=tournament)[:, 1]
 
 # stacked classifier
 logging.info("Base model training complete. Starting meta classifier training.")
-sfk = StratifiedKFold(n_splits=2)
+skf = StratifiedKFold(n_splits=2)
 ensemble_tree = RandomForestClassifier(n_jobs=-1)
 meta_classifier = GridSearchCV(ensemble_tree, param_grid=models["ExtraTrees"])
 params = gen_param_dict(meta_classifier, x_test=predictions_train, y_test=Y)
 grid_search_report(meta_classifier, params=params)
 
 logging.info("Meta classifier training complete. Predicting tournament propabilities.")
-y_prediction = ensemble_tree.predict_proba(predictions_submission)
+y_prediction = ensemble_tree.predict_proba(predictions_submission)[:, 1]
 logging.info("Writing predictions to predictions.csv")
 final = pd.DataFrame(ids, y_prediction)
 final.to_csv("predictions.csv", index=False)
