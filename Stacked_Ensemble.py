@@ -66,8 +66,8 @@ models = {"ExtraTrees": [ExtraTreesClassifier(n_jobs=-1),
                                            ("logisticRegression", LogisticRegression(solver="sag", n_jobs=-1))]),
                                  {"logisticRegression__C": [0.1, 1, 10]}],
           "KNearestNeighbors": [KNeighborsClassifier(algorithm="kd_tree", n_jobs=-1),
-                                {"n_neighbors": range(5, 250, 5)}],
-          "MetaClassifier": {"n_estimators": [val for sublist in [[10, 25], list(range(50, 501, 50))] for val in sublist]}}
+                                {"n_neighbors": range(5, 250, 5)}]}
+meta_learner = {"n_estimators": [val for sublist in [[10, 25], list(range(50, 501, 50))] for val in sublist]}
 
 skf = StratifiedKFold(n_splits=3)
 no_of_models = len(models.keys())
@@ -92,7 +92,7 @@ for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
 # stacked classifier
 logging.info("Base model training complete. Starting meta classifier training.")
 skf = StratifiedKFold(n_splits=2)
-meta_classifier = GridSearchCV(RandomForestClassifier(n_jobs=-1), param_grid=models["MetaClassifier"], cv=5)
+meta_classifier = GridSearchCV(RandomForestClassifier(n_jobs=-1), param_grid=meta_learner, cv=5)
 meta_classifier.fit(X=predictions_train, y=Y)
 params = gen_param_dict(meta_classifier, x_test=predictions_train, y_test=Y)
 grid_search_report(meta_classifier, params=params)
@@ -101,4 +101,4 @@ logging.info("Meta classifier training complete. Predicting tournament probabili
 y_prediction = meta_classifier.predict_proba(predictions_submission)[:, 1]
 logging.info("Writing predictions to predictions.csv")
 final = pd.DataFrame(ids, y_prediction)
-final.to_csv("predictions.csv", index=False)
+final.to_csv("Numerai_predictions.csv", index=False)
