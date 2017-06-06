@@ -74,7 +74,7 @@ no_of_models = len(models.keys())
 predictions_train = np.zeros([X.shape[0], no_of_models])
 predictions_submission = np.zeros([prediction_data.shape[0], no_of_models])
 for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
-    logging.info("Train / Test Split, Split {j} of {split}".format(j=j+1,
+    logging.info("Train / Test Split, Split {j} of {split}".format(j=j + 1,
                                                                    split=skf.get_n_splits()))
     x_train, y_train = X.iloc[train], Y.iloc[train]
     x_test, y_test = X.iloc[test], Y.iloc[test]
@@ -91,7 +91,6 @@ for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
 
 # stacked classifier
 logging.info("Base model training complete. Starting meta classifier training.")
-skf = StratifiedKFold(n_splits=2)
 meta_classifier = GridSearchCV(RandomForestClassifier(n_jobs=-1), param_grid=meta_learner, cv=5)
 meta_classifier.fit(X=predictions_train, y=Y)
 params = gen_param_dict(meta_classifier, x_test=predictions_train, y_test=Y)
