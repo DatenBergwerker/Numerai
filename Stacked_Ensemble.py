@@ -41,6 +41,7 @@ def gen_param_dict(model, x_test, y_test):
               "holdout_accuracy": model.score(x_test, y_test)}
     return params
 
+
 logging.basicConfig(filename="numerai_logger.log",
                     level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(message)s",
@@ -50,8 +51,8 @@ logging.basicConfig(filename="numerai_logger.log",
 logging.info("Loading Data")
 training_data = pd.read_csv('numerai_training_data.csv', header=0)
 prediction_data = pd.read_csv('numerai_tournament_data.csv', header=0)
-# training_data = training_data.sample(n=1000)
-# prediction_data = prediction_data.sample(n=1000)
+# training_data = training_data.sample(n=100)
+# prediction_data = prediction_data.sample(n=100)
 features = [f for f in list(training_data) if "feature" in f]
 X = training_data[features]
 Y = training_data["target"]
@@ -62,9 +63,9 @@ logging.info("Data loading and transformation finished")
 models = {"ExtraTrees": [ExtraTreesClassifier(n_jobs=-1),
                          {"max_features": range(int(sqrt(X.shape[1])), int(X.shape[1] * 0.5)),
                           "n_estimators": [val for sublist in [[10, 25], list(range(50, 501, 50))] for val in sublist]}],
-          "Nystroem-LinearSVM": [Pipeline([("Nystroem_feature_map", Nystroem()),
-                                           ("logisticRegression", LogisticRegression(solver="sag", n_jobs=-1))]),
-                                 {"logisticRegression__C": [0.1, 1, 10]}],
+          "Nystroem-LogitRegression": [Pipeline([("Nystroem_feature_map", Nystroem()),
+                                                 ("logisticRegression", LogisticRegression(solver="sag", n_jobs=-1))]),
+                                       {"logisticRegression__C": [0.1, 1, 10]}],
           "KNearestNeighbors": [KNeighborsClassifier(algorithm="kd_tree", n_jobs=-1),
                                 {"n_neighbors": range(5, 250, 5)}]}
 meta_learner = {"n_estimators": [val for sublist in [[10, 25], list(range(50, 501, 50))] for val in sublist]}
@@ -73,6 +74,7 @@ skf = StratifiedKFold(n_splits=3)
 no_of_models = len(models.keys())
 predictions_train = np.zeros([X.shape[0], no_of_models])
 predictions_submission = np.zeros([prediction_data.shape[0], no_of_models])
+
 for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
     logging.info("Train / Test Split, Split {j} of {split}".format(j=j + 1,
                                                                    split=skf.get_n_splits()))
@@ -87,14 +89,16 @@ for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
         params = gen_param_dict(cur_model, x_test=x_test, y_test=y_test)
         grid_search_report(model, params=params)
         predictions_train[test, i] = cur_model.predict_proba(X=x_test)[:, 1]
-        predictions_submission[:, i] = cur_model.predict_proba(X=tournament)[:, 1]
+
+# prediction run
+predictions_submission = cur_model.predict_proba(X=prediction_data)
 
 # stacked classifier
 logging.info("Base model training complete. Starting meta classifier training.")
 meta_classifier = GridSearchCV(RandomForestClassifier(n_jobs=-1), param_grid=meta_learner, cv=5)
 meta_classifier.fit(X=predictions_train, y=Y)
 params = gen_param_dict(meta_classifier, x_test=predictions_train, y_test=Y)
-grid_search_report(meta_classifier, params=params)
+grid_search_report("Meta Classifier", params=params)
 
 logging.info("Meta classifier training complete. Predicting tournament probabilities.")
 y_prediction = meta_classifier.predict_proba(predictions_submission)[:, 1]
