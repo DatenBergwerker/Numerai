@@ -12,20 +12,17 @@ from sklearn.pipeline import Pipeline
 
 def grid_search_report(model, params):
     logging.info("Training End: Model {}".format(model))
-    logging.info("""{model} Results:\n
+    logging.info(f"""
+                    {model} Results:\n
                     Best parameters on training set: \n
-                    {best_params}\n
+                    {params["best_parameters"]}\n
                     Best cross-validated accuracy:\n
-                    {cv_accuracy}\n
+                    {params["best_validation_score"]}\n
                     Cross-validation stats:\n
-                    {cv_stats}
+                    {params["cv_score_stats"]}\n
                     Accuracy on holdout test set:\n
-                    {holdout_accuracy}
-                 """.format(model=model,
-                            best_params=params["best_parameters"],
-                            cv_accuracy=params["best_validation_score"],
-                            cv_stats=params["cv_score_stats"],
-                            holdout_accuracy=params["holdout_accuracy"])
+                    {params["holdout_accuracy"]}
+                 """
                  )
 
 
@@ -51,14 +48,14 @@ logging.basicConfig(filename="numerai_logger.log",
 logging.info("Loading Data")
 training_data = pd.read_csv('numerai_training_data.csv', header=0)
 prediction_data = pd.read_csv('numerai_tournament_data.csv', header=0)
-# training_data = training_data.sample(n=100)
-# prediction_data = prediction_data.sample(n=100)
+training_data = training_data.sample(n=1000)
+prediction_data = prediction_data.sample(n=1000)
 features = [f for f in list(training_data) if "feature" in f]
 X = training_data[features]
 Y = training_data["target"]
 tournament = prediction_data[features]
 ids = prediction_data["id"]
-logging.info("Data loading and transformation finished")
+logging.info("Data loading and transformation finished.")
 
 models = {"ExtraTrees": [ExtraTreesClassifier(n_jobs=-1),
                          {"max_features": range(int(sqrt(X.shape[1])), int(X.shape[1] * 0.5)),
@@ -69,6 +66,7 @@ models = {"ExtraTrees": [ExtraTreesClassifier(n_jobs=-1),
           "KNearestNeighbors": [KNeighborsClassifier(algorithm="kd_tree", n_jobs=-1),
                                 {"n_neighbors": range(5, 250, 5)}]}
 meta_learner = {"n_estimators": [val for sublist in [[10, 25], list(range(50, 501, 50))] for val in sublist]}
+fitted_models = []
 
 skf = StratifiedKFold(n_splits=3)
 no_of_models = len(models.keys())
@@ -76,19 +74,17 @@ predictions_train = np.zeros([X.shape[0], no_of_models])
 predictions_submission = np.zeros([prediction_data.shape[0], no_of_models])
 
 for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
-    logging.info("Train / Test Split, Split {j} of {split}".format(j=j + 1,
-                                                                   split=skf.get_n_splits()))
+    logging.info(f"Train / Test Split, Split {j + 1} of {skf.get_n_splits()}")
     x_train, y_train = X.iloc[train], Y.iloc[train]
     x_test, y_test = X.iloc[test], Y.iloc[test]
     for i, model in enumerate(models.keys()):
-        logging.info("Begin Training: {model}, Model {i} of {len}".format(model=model,
-                                                                          i=i + 1,
-                                                                          len=no_of_models))
+        logging.info(f"Begin Training: {model}, Model {i + 1} of {no_of_models}")
         cur_model = GridSearchCV(models[model][0], param_grid=models[model][1], cv=5)
         cur_model.fit(X=x_train, y=y_train)
         params = gen_param_dict(cur_model, x_test=x_test, y_test=y_test)
         grid_search_report(model, params=params)
         predictions_train[test, i] = cur_model.predict_proba(X=x_test)[:, 1]
+        fitted_models.append((j, model, cur_model.best_score_, cur_model))
 
 # prediction run
 predictions_submission = cur_model.predict_proba(X=prediction_data)
