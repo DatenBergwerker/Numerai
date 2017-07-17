@@ -11,7 +11,7 @@ from sklearn.pipeline import Pipeline
 
 
 def grid_search_report(model, params):
-    logging.info("Training End: Model {}".format(model))
+    logging.info(f"Training End: Model {model}")
     logging.info(f"""
                     {model} Results:\n
                     Best parameters on training set: \n
@@ -26,7 +26,7 @@ def grid_search_report(model, params):
                  )
 
 
-def gen_param_dict(model, x_test, y_test):
+def gen_param_dict(model, score):
     cv_results = model.cv_results_["mean_test_score"]
     cv_results = {"mean": round(np.mean(cv_results), 5),
                   "std": round(np.std(cv_results), 5),
@@ -35,7 +35,7 @@ def gen_param_dict(model, x_test, y_test):
     params = {"best_parameters": model.best_params_,
               "best_validation_score": model.best_score_,
               "cv_score_stats": cv_results,
-              "holdout_accuracy": model.score(x_test, y_test)}
+              "holdout_accuracy": score}
     return params
 
 
@@ -66,10 +66,10 @@ models = {"ExtraTrees": [ExtraTreesClassifier(n_jobs=-1),
           "KNearestNeighbors": [KNeighborsClassifier(algorithm="kd_tree", n_jobs=-1),
                                 {"n_neighbors": range(5, 250, 5)}]}
 meta_learner = {"n_estimators": [val for sublist in [[10, 25], list(range(50, 501, 50))] for val in sublist]}
-fitted_models = []
-
 skf = StratifiedKFold(n_splits=3)
 no_of_models = len(models.keys())
+fitted_models = {key: [0, None] for key in models.keys()}
+
 predictions_train = np.zeros([X.shape[0], no_of_models])
 predictions_submission = np.zeros([prediction_data.shape[0], no_of_models])
 
@@ -81,21 +81,29 @@ for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
         logging.info(f"Begin Training: {model}, Model {i + 1} of {no_of_models}")
         cur_model = GridSearchCV(models[model][0], param_grid=models[model][1], cv=5)
         cur_model.fit(X=x_train, y=y_train)
-        params = gen_param_dict(cur_model, x_test=x_test, y_test=y_test)
+        score = cur_model.score(X=x_test, y=y_test)
+        params = gen_param_dict(cur_model, score=score)
         grid_search_report(model, params=params)
         predictions_train[test, i] = cur_model.predict_proba(X=x_test)[:, 1]
-        fitted_models.append((j, model, cur_model.best_score_, cur_model))
 
+        # Keep best models for predicting first level test set values
+        if score > fitted_models[model][0]:
+            fitted_models[model] = [score, cur_model]
+
+logging.info("Base model training complete. Starting base model prediction.")
 # prediction run
-predictions_submission = cur_model.predict_proba(X=prediction_data)
+for i, model in enumerate(fitted_models.keys()):
+    cur_model = fitted_models[model][1]
+    predictions_submission[:, i] = cur_model.predict_proba(X=tournament)
+logging.info("Base model prediction complete. Starting Meta Learner Training.")
 
 # stacked classifier
-logging.info("Base model training complete. Starting meta classifier training.")
+
 meta_classifier = GridSearchCV(RandomForestClassifier(n_jobs=-1), param_grid=meta_learner, cv=5)
 meta_classifier.fit(X=predictions_train, y=Y)
-params = gen_param_dict(meta_classifier, x_test=predictions_train, y_test=Y)
+score = meta_classifier.best_score_
+params = gen_param_dict(meta_classifier, score=score)
 grid_search_report("Meta Classifier", params=params)
-
 logging.info("Meta classifier training complete. Predicting tournament probabilities.")
 y_prediction = meta_classifier.predict_proba(predictions_submission)[:, 1]
 logging.info("Writing predictions to predictions.csv")
