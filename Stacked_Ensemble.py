@@ -41,7 +41,7 @@ def gen_param_dict(model, score):
 
 logging.basicConfig(filename="numerai_logger.log",
                     level=logging.INFO,
-                    format="%(asctime)s %(levelname)s %(message)s",
+                    format="%(asctime)s %(message)s",
                     datefmt="%d.%m.%Y %H:%M:%S")
 
 # Data loading
@@ -73,6 +73,7 @@ fitted_models = {key: [0, None] for key in models.keys()}
 predictions_train = np.zeros([X.shape[0], no_of_models])
 predictions_submission = np.zeros([prediction_data.shape[0], no_of_models])
 
+#
 for j, (train, test) in enumerate(skf.split(X=X, y=Y)):
     logging.info(f"Train / Test Split, Split {j + 1} of {skf.get_n_splits()}")
     x_train, y_train = X.iloc[train], Y.iloc[train]
@@ -94,11 +95,10 @@ logging.info("Base model training complete. Starting base model prediction.")
 # prediction run
 for i, model in enumerate(fitted_models.keys()):
     cur_model = fitted_models[model][1]
-    predictions_submission[:, i] = cur_model.predict_proba(X=tournament)
+    predictions_submission[:, i] = cur_model.predict_proba(X=tournament)[:, 1]
 logging.info("Base model prediction complete. Starting Meta Learner Training.")
 
 # stacked classifier
-
 meta_classifier = GridSearchCV(RandomForestClassifier(n_jobs=-1), param_grid=meta_learner, cv=5)
 meta_classifier.fit(X=predictions_train, y=Y)
 score = meta_classifier.best_score_
@@ -107,5 +107,5 @@ grid_search_report("Meta Classifier", params=params)
 logging.info("Meta classifier training complete. Predicting tournament probabilities.")
 y_prediction = meta_classifier.predict_proba(predictions_submission)[:, 1]
 logging.info("Writing predictions to predictions.csv")
-final = pd.DataFrame(ids, y_prediction)
+final = pd.DataFrame({"id": ids, "pred": y_prediction})
 final.to_csv("Numerai_predictions.csv", index=False)
