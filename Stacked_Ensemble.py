@@ -8,35 +8,7 @@ from sklearn.kernel_approximation import Nystroem
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.pipeline import Pipeline
-
-
-def grid_search_report(model, params):
-    logging.info(f"Training End: Model {model}")
-    logging.info(f"""
-                    {model} Results:\n
-                    Best parameters on training set: \n
-                    {params["best_parameters"]}\n
-                    Best cross-validated accuracy:\n
-                    {params["best_validation_score"]}\n
-                    Cross-validation stats:\n
-                    {params["cv_score_stats"]}\n
-                    Accuracy on holdout test set:\n
-                    {params["holdout_accuracy"]}
-                 """
-                 )
-
-
-def gen_param_dict(model, score):
-    cv_results = model.cv_results_["mean_test_score"]
-    cv_results = {"mean": round(np.mean(cv_results), 5),
-                  "std": round(np.std(cv_results), 5),
-                  "min": round(np.min(cv_results), 5),
-                  "max": round(np.max(cv_results), 5)}
-    params = {"best_parameters": model.best_params_,
-              "best_validation_score": model.best_score_,
-              "cv_score_stats": cv_results,
-              "holdout_accuracy": score}
-    return params
+from NumeraiHelper import gen_param_dict, grid_search_report
 
 
 logging.basicConfig(filename="numerai_logger.log",
@@ -48,8 +20,8 @@ logging.basicConfig(filename="numerai_logger.log",
 logging.info("Loading Data")
 training_data = pd.read_csv('numerai_training_data.csv', header=0)
 prediction_data = pd.read_csv('numerai_tournament_data.csv', header=0)
-training_data = training_data.sample(n=1000)
-prediction_data = prediction_data.sample(n=1000)
+# training_data = training_data.sample(n=1000)
+# prediction_data = prediction_data.sample(n=1000)
 features = [f for f in list(training_data) if "feature" in f]
 X = training_data[features]
 Y = training_data["target"]
@@ -107,5 +79,5 @@ grid_search_report("Meta Classifier", params=params)
 logging.info("Meta classifier training complete. Predicting tournament probabilities.")
 y_prediction = meta_classifier.predict_proba(predictions_submission)[:, 1]
 logging.info("Writing predictions to predictions.csv")
-final = pd.DataFrame({"id": ids, "pred": y_prediction})
+final = pd.DataFrame({"id": ids, "probability": y_prediction})
 final.to_csv("Numerai_predictions.csv", index=False)
