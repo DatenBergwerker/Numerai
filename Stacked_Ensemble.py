@@ -11,6 +11,7 @@ from sklearn.pipeline import Pipeline
 
 
 def grid_search_report(model, params):
+    """Helper function to log model performance."""
     logging.info("Training End: Model {}".format(model))
     logging.info("""{model} Results:\n
                     Best parameters on training set: \n
@@ -30,6 +31,7 @@ def grid_search_report(model, params):
 
 
 def gen_param_dict(model, x_test, y_test):
+    """Helper function to store model results."""
     cv_results = model.cv_results_["mean_test_score"]
     cv_results = {"mean": round(np.mean(cv_results), 5),
                   "std": round(np.std(cv_results), 5),
